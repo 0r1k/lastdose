@@ -96,7 +96,7 @@ func TestOfflineBlocksStart(t *testing.T) {
 	if m.synced || m.screen != scrSync {
 		t.Fatalf("must wait for network time, screen %v", m.screen)
 	}
-	if !strings.Contains(m.View(), "Could not reach any time server") {
+	if !strings.Contains(m.View(), "could not reach any time server") {
 		t.Fatal("offline screen not shown")
 	}
 	e.net.down = false

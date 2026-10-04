@@ -1,5 +1,5 @@
-// Package art draws the owl mascot, achievement badges and big digits in
-// plain 7-bit ASCII. Animation is frame based: callers pass a frame counter
+// Package art draws Ray the owl, the mascot, plus achievement badges and big
+// digits in plain 7-bit ASCII. Animation is frame based: callers pass a frame counter
 // that grows with time and get back the lines to print.
 package art
 
@@ -15,6 +15,9 @@ const (
 	eyesHappy eyes = "( ^^ )"
 	eyesShut  eyes = "( -- )"
 )
+
+// Name is the mascot's name.
+const Name = "Ray"
 
 const (
 	// Width is the canvas width every frame is padded to.

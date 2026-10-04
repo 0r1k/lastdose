@@ -1,7 +1,8 @@
 # LastDose
 
 A terminal (TUI) counter of time spent free from a bad habit: smoking or alcohol.
-Written in Go with Bubble Tea.
+Written in Go with Bubble Tea. Your companion is Ray, an ASCII owl: a bird, for
+the freedom you are winning back.
 
 ```sh
 go build -o lastdose .
@@ -45,7 +46,7 @@ start the counter again from scratch.
 
 There are 12 steps: 24 hours, then each step doubles. The last badge unlocks
 after 2048 days (~5.6 years), which covers 5 years with room to spare. Names and
-mottos are in `internal/achievements/achievements.go`. The ASCII owl and the
+mottos are in `internal/achievements/achievements.go`. Ray the owl and the
 per-badge hats are in `internal/art/owl.go`.
 
 ## Final congratulation

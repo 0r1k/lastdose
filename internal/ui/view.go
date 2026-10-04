@@ -101,9 +101,9 @@ func (m Model) viewSync() string {
 	var b strings.Builder
 	spinner := string(`|/-\`[m.frame/2%4])
 	if m.syncing {
-		b.WriteString(sAccent.Render(spinner+" Syncing with network time servers...") + "\n\n")
+		b.WriteString(sAccent.Render(spinner+" "+art.Name+" is checking the time with network servers...") + "\n\n")
 	} else {
-		b.WriteString(sBad.Render("Could not reach any time server.") + "\n")
+		b.WriteString(sBad.Render(art.Name+" could not reach any time server.") + "\n")
 		b.WriteString(sDim.Render("Check your internet connection.") + "\n\n")
 		wait := time.Until(m.retryAt).Round(time.Second)
 		b.WriteString(sText.Render(fmt.Sprintf("Retrying in %s.", max(wait, 0))) + "\n\n")
@@ -260,6 +260,8 @@ func (m Model) viewIdleTab() string {
 		"",
 		sText.Render("Press enter to start the counter right now."),
 		sDim.Render("Time is taken from the network, not from this computer."),
+		"",
+		sOwl.Render(art.Name+" is waiting on the branch."),
 	)
 	return lipgloss.JoinVertical(lipgloss.Left,
 		m.viewTabs(),
@@ -326,7 +328,7 @@ func (m Model) viewDash() string {
 	}
 	right := lipgloss.JoinVertical(lipgloss.Center,
 		m.owl(unlocked-1),
-		sAccent.Render("~ "+rank+" ~"),
+		sOwl.Bold(true).Render(art.Name)+sDim.Render("  ~ ")+sAccent.Render(rank)+sDim.Render(" ~"),
 	)
 
 	parts := []string{m.viewTabs(), ""}
@@ -354,7 +356,7 @@ func (m Model) badge(a achievements.Achievement, unlocked, party bool) string {
 		lines = art.Badge(fig, a.Name, milestoneUpper(a.Threshold), a.Motto, m.frame, true, badgeStyles(a.Index, m.frame, true))
 	} else {
 		lines = art.Badge(art.Sleeping(m.frame), a.Name, "LOCKED  -  "+milestoneUpper(a.Threshold),
-			"Still asleep. Keep going.", 0, false, badgeStyles(a.Index, m.frame, false))
+			art.Name+" is still asleep. Keep going.", 0, false, badgeStyles(a.Index, m.frame, false))
 	}
 	return strings.Join(lines, "\n")
 }
