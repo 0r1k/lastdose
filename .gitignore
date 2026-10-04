@@ -1,0 +1,25 @@
+# Build output
+/lastdose
+/lastdose.exe
+/dist/
+*.test
+*.out
+coverage.*
+
+# Local state and a personal final message, if kept in the repo dir
+state.json
+.state-*.json
+/final_message.txt
+
+# Scratch
+/.preview/
+/.probe/
+*.tmp
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
