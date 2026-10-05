@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -38,11 +37,9 @@ func run() error {
 	}
 	dataPath := flag.String("data", defPath, "state file")
 	demo := flag.Duration("demo", 0, "try the app on a throwaway state with a habit already this old, e.g. -demo 100h")
-	previewFinal := flag.Bool("preview-final", false, "open the final congratulation modal right away")
 	flag.Parse()
 
 	clock := netclock.New(netclock.DefaultSources()...)
-	msgDir := filepath.Dir(*dataPath)
 	if *demo > 0 {
 		path, cleanup, err := demoState(clock, *demo)
 		if err != nil {
@@ -52,7 +49,7 @@ func run() error {
 		*dataPath = path
 	}
 
-	st, err := store.Open(*dataPath)
+	st, err := store.Open(*dataPath, assets.Key())
 	if err != nil {
 		return err
 	}
@@ -61,8 +58,8 @@ func run() error {
 		Store:        st,
 		Clock:        clock,
 		LookupTZ:     tz.Online,
-		FinalMessage: finalMessage(msgDir),
-		PreviewFinal: *previewFinal,
+		FinalMessage: assets.FinalMessage,
+		Demo:         *demo > 0,
 	}), tea.WithAltScreen())
 
 	// The terminal may close (SIGHUP) or the process may be asked to stop:
@@ -102,7 +99,7 @@ func demoState(clock *netclock.Clock, age time.Duration) (string, func(), error)
 	}
 	cleanup := func() { os.RemoveAll(dir) }
 	path := filepath.Join(dir, "state.json")
-	st, err := store.Open(path)
+	st, err := store.Open(path, assets.Key())
 	if err == nil {
 		err = st.Update(func(s *store.State) {
 			s.Timezone = tz.Detect()
@@ -114,14 +111,4 @@ func demoState(clock *netclock.Clock, age time.Duration) (string, func(), error)
 		return "", nil, err
 	}
 	return path, cleanup, nil
-}
-
-// finalMessage prefers a user file next to the state over the embedded text.
-func finalMessage(dir string) string {
-	if b, err := os.ReadFile(filepath.Join(dir, "final_message.txt")); err == nil {
-		if s := strings.TrimSpace(string(b)); s != "" {
-			return s
-		}
-	}
-	return strings.TrimSpace(assets.FinalMessage)
 }

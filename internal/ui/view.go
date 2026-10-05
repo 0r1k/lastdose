@@ -322,13 +322,9 @@ func (m Model) viewDash() string {
 	}
 	b.WriteString(sDim.Render(fmt.Sprintf("Badges %2d/%d  ", unlocked, len(achievements.All))) + row.String())
 
-	rank := "Rookie"
-	if unlocked > 0 {
-		rank = achievements.All[unlocked-1].Name
-	}
 	right := lipgloss.JoinVertical(lipgloss.Center,
 		m.owl(unlocked-1),
-		sOwl.Bold(true).Render(art.Name)+sDim.Render("  ~ ")+sAccent.Render(rank)+sDim.Render(" ~"),
+		sOwl.Bold(true).Render(art.Name),
 	)
 
 	parts := []string{m.viewTabs(), ""}
@@ -443,7 +439,7 @@ func (m Model) viewFinale() string {
 		lipgloss.NewStyle().Bold(true).Foreground(color).Render("~ L A S T   D O S E ~"),
 		sDim.Render(habitTitle(m.finale)+"  ·  "+compact(elapsed)),
 		"",
-		sText.Width(60).Align(lipgloss.Center).Render(m.opt.FinalMessage),
+		sText.Width(60).Align(lipgloss.Center).Render(m.finalText),
 		"",
 		help(key("enter", "close")),
 	)

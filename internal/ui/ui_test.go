@@ -12,6 +12,7 @@ import (
 
 	"lastdose/internal/achievements"
 	"lastdose/internal/netclock"
+	"lastdose/internal/secret"
 	"lastdose/internal/store"
 )
 
@@ -33,17 +34,19 @@ type env struct {
 	path  string
 	net   *fakeNet
 	clock *netclock.Clock
+	key   []byte
 }
 
 func newEnv(t *testing.T) *env {
 	f := &fakeNet{t: time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)}
-	return &env{t: t, path: filepath.Join(t.TempDir(), "state.json"), net: f, clock: netclock.New(f.source)}
+	key, _ := secret.NewKey()
+	return &env{t: t, path: filepath.Join(t.TempDir(), "state.json"), net: f, clock: netclock.New(f.source), key: key}
 }
 
 // open starts the app like a fresh launch and feeds it the sync result.
 func (e *env) open() Model {
 	e.t.Helper()
-	st, err := store.Open(e.path)
+	st, err := store.Open(e.path, e.key)
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -51,7 +54,7 @@ func (e *env) open() Model {
 		Store:        st,
 		Clock:        e.clock,
 		LookupTZ:     func(context.Context) (string, error) { return "Europe/Berlin", nil },
-		FinalMessage: "MY OWN TEXT",
+		FinalMessage: func() (string, error) { return "MY OWN TEXT", nil },
 	})
 	return e.sync(m)
 }
@@ -210,5 +213,39 @@ func TestTabReachesUntrackedHabit(t *testing.T) {
 	m = press(t, m, "tab")
 	if m.active != store.Smoking {
 		t.Fatalf("tab must wrap around, active %q", m.active)
+	}
+}
+
+func TestFinaleCannotBeForced(t *testing.T) {
+	e := newEnv(t)
+	m := press(t, e.open(), "enter", "enter", "enter")
+
+	unsealed := 0
+	m.opt.FinalMessage = func() (string, error) { unsealed++; return "SECRET", nil }
+
+	// Pretend every badge was seen, without the time actually passing.
+	m.st.Update(func(s *store.State) { s.Habits[store.Smoking].Acknowledged = len(achievements.All) })
+	next, _ := m.Update(tickMsg{})
+	m = next.(Model)
+	if m.finale != "" || unsealed != 0 || strings.Contains(m.View(), "SECRET") {
+		t.Fatal("final message must not open before 2048 real days")
+	}
+}
+
+func TestDemoNeverRevealsMessage(t *testing.T) {
+	e := newEnv(t)
+	m := press(t, e.open(), "enter", "enter", "enter")
+	m.opt.Demo = true
+	m.opt.FinalMessage = func() (string, error) { return "SECRET", nil }
+
+	e.net.t = e.net.t.Add(achievements.All[len(achievements.All)-1].Threshold + time.Hour)
+	m = press(t, e.sync(m), "s")
+	next, _ := m.Update(tickMsg{})
+	m = next.(Model)
+	if m.finale == "" {
+		t.Fatal("demo should still show the final modal")
+	}
+	if v := m.View(); strings.Contains(v, "SECRET") || !strings.Contains(v, "stays sealed") {
+		t.Fatal("demo must show the placeholder, not the real message")
 	}
 }

@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"lastdose/internal/secret"
 )
 
 // Habit identifies a tracked bad habit.
@@ -31,6 +33,9 @@ type HabitState struct {
 	// Acknowledged is how many unlock popups the user has already seen.
 	Acknowledged int  `json:"acknowledged"`
 	FinalShown   bool `json:"final_shown"`
+	// Sig signs the habit and its start moment, so the start cannot be moved
+	// back by editing the file. Empty in builds without the release key.
+	Sig string `json:"sig,omitempty"`
 }
 
 // Elapsed returns time clean at now, never negative.
@@ -55,6 +60,9 @@ type Store struct {
 	mu    sync.Mutex
 	path  string
 	state State
+	// key signs habits; nil disables signing and verification.
+	key      []byte
+	tampered []Habit
 }
 
 // DefaultPath returns $XDG_CONFIG_HOME/lastdose/state.json (or the OS analogue).
@@ -66,9 +74,10 @@ func DefaultPath() (string, error) {
 	return filepath.Join(dir, "lastdose", "state.json"), nil
 }
 
-// Open loads state from path; a missing file yields empty state.
-func Open(path string) (*Store, error) {
-	s := &Store{path: path}
+// Open loads state from path; a missing file yields empty state. With a key,
+// habits whose signature does not match are discarded, see Tampered.
+func Open(path string, key []byte) (*Store, error) {
+	s := &Store{path: path, key: key}
 	b, err := os.ReadFile(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
@@ -82,8 +91,24 @@ func Open(path string) (*Store, error) {
 	if s.state.Habits == nil {
 		s.state.Habits = map[Habit]*HabitState{}
 	}
+	if key != nil {
+		for _, h := range Habits {
+			hs := s.state.Habits[h]
+			if hs != nil && !secret.Verify(key, sigData(h, hs), hs.Sig) {
+				delete(s.state.Habits, h)
+				s.tampered = append(s.tampered, h)
+			}
+		}
+	}
 	return s, nil
 }
+
+func sigData(h Habit, hs *HabitState) string {
+	return fmt.Sprintf("%s|%d", h, hs.StartedAt.UnixNano())
+}
+
+// Tampered lists habits dropped on Open because the file was edited by hand.
+func (s *Store) Tampered() []Habit { return s.tampered }
 
 // Path returns the file backing the store.
 func (s *Store) Path() string { return s.path }
@@ -109,6 +134,11 @@ func (s *Store) Touch(now time.Time) error {
 }
 
 func (s *Store) saveLocked() error {
+	if s.key != nil {
+		for h, hs := range s.state.Habits {
+			hs.Sig = secret.Sign(s.key, sigData(h, hs))
+		}
+	}
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return err
 	}

@@ -1,4 +1,0 @@
-[ Your congratulation text goes here ]
-
-Edit assets/final_message.txt and rebuild,
-or put a final_message.txt file next to state.json.

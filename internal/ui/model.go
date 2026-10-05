@@ -24,10 +24,11 @@ type Options struct {
 	Clock *netclock.Clock
 	// LookupTZ detects the time zone online; nil skips online detection.
 	LookupTZ func(ctx context.Context) (string, error)
-	// FinalMessage is shown in the modal after the last achievement.
-	FinalMessage string
-	// PreviewFinal opens the final modal right away without saving anything.
-	PreviewFinal bool
+	// FinalMessage unseals the congratulation shown after the last badge. It
+	// is called only at that moment, never earlier.
+	FinalMessage func() (string, error)
+	// Demo marks a throwaway state: the real final message is never shown.
+	Demo bool
 }
 
 type screen int
@@ -114,8 +115,8 @@ type Model struct {
 	galleryCursor int
 
 	// finale is the habit whose final modal is open, if any.
-	finale       store.Habit
-	previewFinal bool
+	finale    store.Habit
+	finalText string
 
 	notice   string
 	flash    string
@@ -208,6 +209,13 @@ func (m *Model) begin(msg syncMsg) {
 				lastSeen.In(m.loc).Format(dateHMLayout), short(away))
 		}
 	}
+	if dropped := m.st.Tampered(); len(dropped) > 0 {
+		var names []string
+		for _, h := range dropped {
+			names = append(names, habitTitle(h))
+		}
+		m.warn = fmt.Sprintf("state.json was edited by hand. Discarded: %s. Start the counter again.", strings.Join(names, ", "))
+	}
 	m.touch()
 
 	switch tracked := m.tracked(); {
@@ -218,14 +226,6 @@ func (m *Model) begin(msg syncMsg) {
 	default:
 		m.screen = scrDash
 		m.active = tracked[0]
-	}
-
-	if m.opt.PreviewFinal {
-		m.previewFinal = true
-		m.finale = store.Smoking
-		if m.active != "" {
-			m.finale = m.active
-		}
 	}
 }
 
@@ -324,19 +324,37 @@ func (m *Model) pendingCount() int {
 	return total
 }
 
-// checkFinale opens the final modal for a habit that has acknowledged the
-// last achievement but has not seen the congratulation yet.
+// checkFinale opens the final modal for a habit that really reached the last
+// achievement (by network time, not by counters in the file) and has not
+// seen the congratulation yet. Only then is the message unsealed.
 func (m *Model) checkFinale() {
 	if m.finale != "" {
 		return
 	}
+	last := len(achievements.All)
 	for _, h := range m.tracked() {
 		hs, _ := m.habit(h)
-		if hs.Acknowledged >= len(achievements.All) && !hs.FinalShown {
-			m.finale = h
-			return
+		if hs.FinalShown || hs.Acknowledged < last || achievements.Unlocked(hs.Elapsed(m.now)) < last {
+			continue
 		}
+		m.finale = h
+		m.finalText = m.unsealFinal()
+		return
 	}
+}
+
+func (m *Model) unsealFinal() string {
+	if m.opt.Demo {
+		return "This is a demo, so the real message stays sealed.\nIt opens only at the end of a real 2048-day journey."
+	}
+	if m.opt.FinalMessage == nil {
+		return ""
+	}
+	text, err := m.opt.FinalMessage()
+	if err != nil {
+		return "This build cannot open the sealed message (" + err.Error() + ").\nOfficial releases reveal it."
+	}
+	return text
 }
 
 func (m *Model) overlaysAllowed() bool {
@@ -440,16 +458,13 @@ func (m Model) keySync(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) keyFinale(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter", "esc", " ":
-		if !m.previewFinal {
-			h := m.finale
-			m.update(func(s *store.State) {
-				if hs := s.Habits[h]; hs != nil {
-					hs.FinalShown = true
-				}
-			})
-		}
-		m.previewFinal = false
-		m.finale = ""
+		h := m.finale
+		m.update(func(s *store.State) {
+			if hs := s.Habits[h]; hs != nil {
+				hs.FinalShown = true
+			}
+		})
+		m.finale, m.finalText = "", ""
 	case "q":
 		return m.quit()
 	}

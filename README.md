@@ -5,9 +5,12 @@ Written in Go with Bubble Tea. Your companion is Ray, an ASCII owl: a bird, for
 the freedom you are winning back.
 
 ```sh
-go build -o lastdose .
+make build      # or: go build -o lastdose .
 ./lastdose
 ```
+
+A build from public sources works fully, except for the final message: it stays
+sealed, see below. Official binaries are built with `make release`.
 
 ## Time you can't cheat
 
@@ -51,10 +54,34 @@ per-badge hats are in `internal/art/owl.go`.
 
 ## Final congratulation
 
-The modal after the last badge shows, in order of priority:
+The message shown after the last badge is a secret until the journey is over.
+Only its encrypted form, `assets/final_message.enc` (AES-256-GCM), is in the
+repository. The plaintext and the key never are.
 
-1. `final_message.txt` next to `state.json`, if present (no rebuild needed);
-2. `assets/final_message.txt`, embedded into the binary at build time.
+- The message is decrypted only when a habit has really reached 2048 days by
+  network time. Counters in `state.json` cannot trigger it.
+- `-demo` never shows the real message.
+- The start of every counter in `state.json` is signed with the same key, so a
+  start date moved back by hand is detected and that counter is discarded.
+
+For the maintainer:
+
+```sh
+$EDITOR assets/final_message.txt   # plaintext, gitignored
+make seal                          # writes final_message.enc, creates .final_message.key
+make release                       # binary with the key compiled in
+```
+
+`.final_message.key` is created once. Back it up (in a password manager, for
+example) and use the same key for every release: with another key, old
+releases' messages do not open and users' signed counters are rejected. The
+key goes into the binary through the generated, gitignored
+`assets/key_release.go`, not through `-ldflags`, because Go records ldflags in
+the binary's build info.
+
+Limits: the key has to be inside the binary for the app to work offline, so a
+determined person can still pull it out with a disassembler. Encryption keeps
+the message off GitHub and out of `strings`, but it is not a vault.
 
 ## Keys
 
@@ -69,7 +96,6 @@ The modal after the last badge shows, in order of priority:
 ```sh
 ./lastdose -data path/to/state.json   # another state file
 ./lastdose -demo 100h                 # throwaway state, smoking quit 100h ago
-./lastdose -preview-final             # show the final modal right away
 ```
 
 `-demo` works on a temporary file that is deleted on exit, so your real progress
